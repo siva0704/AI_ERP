@@ -1,0 +1,541 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+generator client_api {
+  provider = "prisma-client-js"
+  output   = "../../../apps/api/node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Global Context: Every table (except Tenant/Global) has branchId
+
+
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime? 
+
+  branches  Branch[]
+  auditLogs AuditLog[]
+  
+  // Transport & Library Relations
+  libraryBooks LibraryBook[]
+  bookIssues   BookIssue[]
+  transportVehicles TransportVehicle[]
+  transportRoutes   TransportRoute[]
+  transportAllocations TransportAllocation[]
+
+  @@map("tenants")
+}
+
+// --- REPLACEMENT CONTENT ---
+
+model Branch {
+  id        String   @id @default(uuid())
+  name      String
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  users           User[]
+  studentProfiles StudentProfile[]
+  feeStructures   FeeStructure[]
+  feeLedgers      FeeLedger[]
+  
+  attendanceRecords AttendanceRecord[]
+  timetables       Timetable[]
+  exams            Exam[]
+  classrooms       Classroom[]
+  subjects         Subject[]
+  
+  // Transport & Library
+  transportRoutes       TransportRoute[]
+  transportVehicles     TransportVehicle[]
+  transportAllocations  TransportAllocation[]
+  libraryBooks          LibraryBook[]
+  bookIssues            BookIssue[]
+  
+  staffProfiles   StaffProfile[]
+  payrollLedgers  PayrollLedger[]
+
+  @@map("branches")
+}
+
+enum UserRole {
+  GROUP_ADMIN
+  BRANCH_ADMIN
+  STAFF
+  STUDENT
+}
+
+enum AuthProvider {
+  CLERK
+  INTERNAL
+}
+
+
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String? 
+  role      UserRole
+  provider  AuthProvider @default(INTERNAL)
+  
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+  
+  studentProfile StudentProfile?
+  staffProfile   StaffProfile?
+  attendanceRecords AttendanceRecord[]
+  timetables        Timetable[]
+
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model StudentProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+
+  firstName String
+  lastName  String
+  enrollmentNo String
+
+  feeLedgers FeeLedger[]
+  examResults ExamResult[]
+  transportAllocation TransportAllocation[]
+  bookIssues          BookIssue[]
+  
+  status    StudentStatus @default(ACTIVE)
+
+  @@map("student_profiles")
+}
+
+enum StudentStatus {
+  ACTIVE
+  TRANSFERRED
+  DROPPED
+  ALUMNI
+  INACTIVE
+}
+
+model FeeStructure {
+  id        String   @id @default(uuid())
+  name      String
+  amount    Decimal
+  currency  String   @default("USD")
+  
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("fee_structures")
+}
+
+enum FeeTransactionType {
+  DUE
+  PAYMENT
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model FeeLedger {
+  id        String   @id @default(uuid())
+  studentId String
+  student   StudentProfile @relation(fields: [studentId], references: [id])
+  
+  description String
+  amount      Decimal 
+  type        FeeTransactionType
+
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  
+  status    PaymentStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  @@map("fee_ledgers")
+}
+
+// --- PHASE 2: Operational Core ---
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+model AttendanceRecord {
+  id        String   @id @default(uuid())
+  date      DateTime
+  status    AttendanceStatus
+  
+  // Polymorphic-ish: Link to User (Student or Staff)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  // Context
+  subjectId String? // If null, it's daily attendance
+  
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("attendance_records")
+}
+
+// --- LIBRARY MODULE ---
+
+model LibraryBook {
+  id        String   @id @default(uuid())
+  title     String
+  author    String
+  isbn      String?
+  status    String   @default("AVAILABLE") // AVAILABLE, ISSUED, LOST
+  
+  tenantId  String
+  branchId  String
+  
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  issues    BookIssue[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([tenantId])
+  @@index([branchId])
+}
+
+model BookIssue {
+  id          String    @id @default(uuid())
+  bookId      String
+  studentId   String?
+  staffId     String?
+  
+  issueDate   DateTime  @default(now())
+  dueDate     DateTime
+  returnDate  DateTime?
+  fineAmount  Decimal   @default(0)
+  
+  book        LibraryBook @relation(fields: [bookId], references: [id])
+  student     StudentProfile?    @relation(fields: [studentId], references: [id])
+  staff       StaffProfile?      @relation(fields: [staffId], references: [id])
+  
+  tenantId    String
+  branchId    String
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  branch      Branch      @relation(fields: [branchId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([bookId])
+  @@index([studentId])
+}
+
+// --- TRANSPORT MODULE ---
+
+model TransportVehicle {
+  id          String   @id @default(uuid())
+  plateNumber String
+  capacity    Int
+  driverName  String
+  driverPhone String?
+  
+  tenantId    String
+  branchId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  
+  routes      TransportRoute[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([tenantId])
+  @@index([branchId])
+}
+
+model TransportRoute {
+  id          String   @id @default(uuid())
+  name        String
+  monthlyCost Decimal
+  
+  vehicleId   String?
+  vehicle     TransportVehicle? @relation(fields: [vehicleId], references: [id])
+  
+  stops       TransportStop[]
+  allocations TransportAllocation[]
+  
+  tenantId    String
+  branchId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  branch      Branch   @relation(fields: [branchId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([tenantId])
+  @@index([branchId])
+}
+
+model TransportStop {
+  id            String   @id @default(uuid())
+  name          String
+  sequenceOrder Int
+  
+  routeId       String
+  route         TransportRoute @relation(fields: [routeId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([routeId])
+}
+
+model TransportAllocation {
+  id          String   @id @default(uuid())
+  
+  studentId   String
+  routeId     String
+  
+  startDate   DateTime @default(now())
+  endDate     DateTime?
+  
+  student     StudentProfile        @relation(fields: [studentId], references: [id])
+  route       TransportRoute @relation(fields: [routeId], references: [id])
+  
+  tenantId    String
+  branchId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  branch      Branch   @relation(fields: [branchId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([studentId])
+  @@index([routeId])
+  @@index([tenantId])
+  @@index([branchId])
+}
+// Old TimeSlot/ClassSession models removed in favor of Timetable
+
+
+// --- PHASE 7: Academic Engine (Timetables, Exams, Audit) ---
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String   // CREATE, UPDATE, DELETE
+  resource  String   // Student, Exam, Fee
+  userId    String?  // Who did it
+  payload   Json?    // Before/After data
+  createdAt DateTime @default(now())
+  
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model Subject {
+  id        String   @id @default(uuid())
+  name      String
+  code      String
+  
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  
+  timetables Timetable[]
+  exams      Exam[]
+  
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("subjects")
+}
+
+model Classroom {
+  id        String   @id @default(uuid())
+  name      String   // "10-A", "Lab 1"
+  capacity  Int
+  
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  
+  timetables Timetable[]
+
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("classrooms")
+}
+
+model Timetable {
+  id          String   @id @default(uuid())
+  dayOfWeek   String   // MONDAY, TUESDAY...
+  startTime   DateTime
+  endTime     DateTime
+  
+  subjectId   String
+  subject     Subject  @relation(fields: [subjectId], references: [id])
+  
+  teacherId   String
+  teacher     User     @relation(fields: [teacherId], references: [id])
+  
+  classroomId String
+  classroom   Classroom @relation(fields: [classroomId], references: [id])
+  
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id])
+
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("timetables")
+}
+
+model Exam {
+  id        String   @id @default(uuid())
+  name      String   // "Midterm 2024"
+  date      DateTime
+  type      String   // INTERNAL, EXTERNAL
+  
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id])
+  
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  
+  results   ExamResult[]
+  
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("exams")
+}
+
+model ExamResult {
+  id        String   @id @default(uuid())
+  marks     Decimal
+  grade     String?
+  remarks   String?
+  
+  examId    String
+  exam      Exam    @relation(fields: [examId], references: [id])
+  
+  studentId String
+  student   StudentProfile @relation(fields: [studentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("exam_results")
+}
+
+// Old Models Deleted
+
+// --- PHASE 4: Intelligence & Back-Office ---
+
+model StaffProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+
+  designation String
+  department  String
+  baseSalary  Decimal
+  joinDate    DateTime @default(now())
+
+  payrollLedgers PayrollLedger[]
+  bookIssues     BookIssue[]
+
+  @@map("staff_profiles")
+}
+
+enum PayrollStatus {
+  DRAFT
+  GENERATED
+  PAID
+}
+
+model PayrollLedger {
+  id        String   @id @default(uuid())
+  
+  staffId   String
+  staff     StaffProfile @relation(fields: [staffId], references: [id])
+  
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+
+  month     DateTime // First day of the month
+  
+  baseSalary    Decimal
+  totalDeductions Decimal
+  netSalary     Decimal
+  
+  status    PayrollStatus @default(DRAFT)
+  
+  generatedAt DateTime @default(now())
+  paidAt      DateTime?
+
+  overrideAmount Decimal? // Manual Adjustment
+  overrideReason String?
+
+  @@map("payroll_ledgers")
+}
+
+model ReportingSnapshot {
+  id        String   @id @default(uuid())
+  branchId  String
+  
+  type      String   // REVENUE, ATTENDANCE_SUMMARY, STAFF_RATIO
+  data      Json     // Flexible payload
+  
+  capturedAt DateTime @default(now())
+  
+  @@index([branchId, type, capturedAt])
+  @@map("reporting_snapshots")
+}

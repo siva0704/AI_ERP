@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  /* Navy / Charcoal */
+  --color-primary: #0f172a;
+  /* Muted Teal */
+  --color-accent: #0d9488;
+  /* Cream / Off-White */
+  --color-background: #fdfbf7;
+  /* Light Gray for Cards */
+  --color-surface: #ffffff;
+
+  --font-display: var(--font-space), sans-serif;
+  --font-sans: var(--font-inter), sans-serif;
+}
+
+:root {
+  --color-primary: #0f172a;
+  --color-accent: #0d9488;
+  --color-background: #fdfbf7;
+  --color-surface: #ffffff;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-primary);
+}
+
+.text-display-huge {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}

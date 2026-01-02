@@ -1,8 +1,11 @@
-import { Controller, Post, Body, UseGuards, Req, Get } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
 import { AdmissionService } from './admission.service';
 import { GlobalContextService } from '../../common/context/global-context.service';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
 
 @Controller('admissions')
+@UseGuards(RolesGuard)
 export class AdmissionController {
     constructor(
         private readonly admissionService: AdmissionService,
@@ -10,6 +13,7 @@ export class AdmissionController {
     ) { }
 
     @Post()
+    @Roles('GROUP_ADMIN', 'BRANCH_ADMIN')
     async admitStudent(@Body() body: any) { // TODO: DTO
         // branchId is injected via GlobalContext automatically in Service if we use it, 
         // or we pass it explicitly.

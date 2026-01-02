@@ -1,12 +1,16 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Res } from '@nestjs/common';
 import { PayrollService } from './payroll.service';
 import type { Response } from 'express';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
 
 @Controller('payroll')
+@UseGuards(RolesGuard)
 export class PayrollController {
     constructor(private readonly payrollService: PayrollService) { }
 
     @Get('ledger')
+    @Roles('GROUP_ADMIN', 'BRANCH_ADMIN')
     async getPayrollLedger() {
         return await this.payrollService.getPayrollLedger();
     }

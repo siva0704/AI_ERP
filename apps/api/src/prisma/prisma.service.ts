@@ -13,7 +13,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
     }
 
     async onModuleInit() {
-        await this.$connect();
+        // await this.$connect(); // Disabled for Mock Mode
     }
 
     // Wrapper to get an RLS-enabled client
@@ -21,7 +21,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
         return this.$extends({
             query: {
                 $allModels: {
-                    async $allOperations({ args, query }) {
+                    async $allOperations({ args, query }: { args: any, query: any }) {
                         // Access the global AsyncLocalStorage context
                         // Note: In NestJS, we need to ensure this is called within the request context
                         // that GlobalContextService tracks.

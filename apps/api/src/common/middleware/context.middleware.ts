@@ -7,15 +7,20 @@ export class ContextMiddleware implements NestMiddleware {
     constructor(private readonly globalContext: GlobalContextService) { }
 
     use(req: Request, res: Response, next: NextFunction) {
-        // MOCK AUTH: Injecting Hardcoded User
-        const mockContext = {
-            userId: 'demo-user-id',
-            role: 'BRANCH_ADMIN', // Giving high privileges
-            branchId: 'default-branch',
+        // AUTH: Read Identity from Headers (Gateway/Frontend should pass these)
+        // In Prod: Do NOT trust headers directly unless from a trusted Gateway or validated JWT
+        const userId = (req.headers['x-user-id'] as string) || 'demo-user-id';
+        const role = (req.headers['x-user-role'] as string) || 'BRANCH_ADMIN'; // Default to Admin for Mock Testing
+        const branchId = (req.headers['x-branch-id'] as string) || 'default-branch';
+
+        const context = {
+            userId,
+            role,
+            branchId,
         };
 
-        // Initialize AsynLocalStorage context for this request
-        this.globalContext.runWith(mockContext, () => {
+        // Initialize AsyncLocalStorage context for this request
+        this.globalContext.runWith(context, () => {
             next();
         });
     }

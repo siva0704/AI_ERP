@@ -30,11 +30,26 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [role, setRole] = useState<string | null>(null);
 
-    const fetchStats = async () => {
+    const fetchStats = async (userRole: string) => {
+        // Only Admins access the branch overview stats
+        if (userRole !== 'GROUP_ADMIN' && userRole !== 'BRANCH_ADMIN') {
+            setLoading(false);
+            return;
+        }
+
         try {
-            const res = await fetch('http://localhost:3001/api/reporting/branch-overview');
-            const data = await res.json();
-            setStats(data);
+            const res = await fetch('http://localhost:3001/api/reporting/branch-overview', {
+                headers: {
+                    'x-user-role': userRole,
+                    'x-branch-id': 'default-branch' // In a real app, this comes from user profile
+                }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setStats(data);
+            } else {
+                console.error("Failed to fetch stats: Forbidden or Error");
+            }
         } catch (error) {
             console.error("Failed to fetch dashboard stats", error);
         } finally {
@@ -43,8 +58,9 @@ export default function DashboardPage() {
     };
 
     useEffect(() => {
-        setRole(Cookies.get("user-role") || null);
-        fetchStats();
+        const userRole = Cookies.get("user-role") || "GUEST";
+        setRole(userRole);
+        fetchStats(userRole);
     }, []);
 
     if (loading) return <div className="p-8">Loading Dashboard...</div>;
@@ -73,6 +89,36 @@ export default function DashboardPage() {
                     <div className="p-6 border rounded-xl hover:shadow-md transition-shadow cursor-pointer bg-violet-50/50">
                         <h3 className="font-bold text-lg mb-2">Exam Results</h3>
                         <p className="text-sm text-slate-600">Check latest grades</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // --- STAFF DASHBOARD ---
+    if (role === 'STAFF') {
+        return (
+            <div className="space-y-6">
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900">Staff Dashboard</h1>
+                    <p className="text-slate-500 mt-2">Manage your classes and attendance.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <KPICard title="Today's Classes" value="4" icon={Users} color="indigo" />
+                    <KPICard title="Pending Attendance" value="1 Class" icon={CalendarCheck} color="orange" />
+                    <KPICard title="Upcoming Exams" value="2" icon={GraduationCap} color="blue" />
+                </div>
+
+                {/* Quick Links */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-6 border rounded-xl hover:shadow-md transition-shadow cursor-pointer bg-indigo-50/50">
+                        <h3 className="font-bold text-lg mb-2">Mark Attendance</h3>
+                        <p className="text-sm text-slate-600">Record student presence</p>
+                    </div>
+                    <div className="p-6 border rounded-xl hover:shadow-md transition-shadow cursor-pointer bg-fuchsia-50/50">
+                        <h3 className="font-bold text-lg mb-2">Upload Marks</h3>
+                        <p className="text-sm text-slate-600">Enter exam results</p>
                     </div>
                 </div>
             </div>

@@ -23,7 +23,7 @@ function SidebarItems() {
     const [role, setRole] = useState<string | null>(null);
 
     useEffect(() => {
-        setRole(Cookies.get("user-role") || "GUEST");
+        setRole(Cookies.get("user-role") || "BRANCH_ADMIN");
     }, []);
 
     const items = [
@@ -63,7 +63,7 @@ export default function DashboardLayout({
     const router = useRouter(); // Need to import useRouter in the component file if not verified
 
     useEffect(() => {
-        setRole(Cookies.get("user-role") || "GUEST");
+        setRole(Cookies.get("user-role") || "BRANCH_ADMIN");
         setUserName(Cookies.get("user-name") || "User");
     }, []);
 

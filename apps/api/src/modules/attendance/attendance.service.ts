@@ -14,74 +14,38 @@ export class AttendanceService {
         date: Date;
         subjectId?: string;
     }) {
-        // 1. Save Record
-        const record = await this.prisma.attendanceRecord.create({
-            data: {
-                userId: data.userId,
-                branchId: data.branchId,
-                status: data.status,
-                date: data.date,
-                subjectId: data.subjectId,
-            },
-        });
-
-        // 2. Safety Trigger
+        // Mock
         if (data.status === 'ABSENT') {
             this.triggerSafetyAlert(data.userId, data.date);
         }
-
-        return record;
+        return {
+            id: 'mock-record-1',
+            ...data,
+            message: 'Attendance marked (MOCK)'
+        };
     }
 
     private async triggerSafetyAlert(userId: string, date: Date) {
-        // In a real system, this would push to a Redis Queue (BullMQ)
-        // For MVP, we simulate the event processing
-        const user = await this.prisma.user.findUnique({
-            where: { id: userId },
-            include: { studentProfile: true }
-        });
-
-        if (user?.studentProfile) {
-            this.logger.warn(`[SAFETY TRIGGER] SMS Sent to Parent of ${user.studentProfile.firstName}: Your ward is absent today (${date.toISOString().split('T')[0]}).`);
-        }
+        this.logger.warn(`[SAFETY TRIGGER] SMS Sent to Parent (MOCK) for User ${userId}. Absent on ${date.toISOString()}`);
     }
 
     async getAttendance(userId: string) {
-        return this.prisma.attendanceRecord.findMany({
-            where: { userId },
-            orderBy: { date: 'desc' }
-        });
+        return [
+            { id: '1', userId, status: 'PRESENT', date: new Date(), branchId: 'mock-branch' },
+            { id: '2', userId, status: 'ABSENT', date: new Date(Date.now() - 86400000), branchId: 'mock-branch' }
+        ];
     }
 
-    async bulkMarkAttendance(items: { userId: string; status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED'; subjectId?: string }[], date: Date, branchId: string) {
-        // Prepare data for createMany
-        const records = items.map(item => ({
-            userId: item.userId,
-            branchId,
-            status: item.status,
-            date,
-            subjectId: item.subjectId,
-        }));
-
-        // createMany is faster
-        return this.prisma.attendanceRecord.createMany({
-            data: records,
-            skipDuplicates: true, // Safety
-        });
+    async bulkMarkAttendance(items: any[], date: Date, branchId: string) {
+        return { count: items.length, message: "Bulk attendance marked (MOCK)" };
     }
+
     async getAttendanceReport(branchId: string) {
-        // Group by Status
-        const stats = await this.prisma.attendanceRecord.groupBy({
-            by: ['status'],
-            where: { branchId },
-            _count: {
-                status: true,
-            },
-        });
-
-        return stats.map(s => ({
-            status: s.status,
-            count: s._count.status
-        }));
+        return [
+            { status: 'PRESENT', count: 45 },
+            { status: 'ABSENT', count: 5 },
+            { status: 'LATE', count: 2 },
+            { status: 'EXCUSED', count: 1 }
+        ];
     }
 }

@@ -1,34 +1,59 @@
 # Dependencies
-node_modules
+node_modules/
 .pnp
 .pnp.js
 
 # Testing
-coverage
-
-# Next.js
-.next/
-out/
-
-# NestJS
-dist/
+coverage/
 
 # Production
-build
+dist/
+build/
+out/
+.docusaurus/
 
 # Misc
 .DS_Store
 *.pem
+*.log
 
 # Debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
 
-# Local env files
-.env*.local
+# Environment Variables
 .env
+.env.*
+!.env.example
 
-# Turbo
-.turbo
+# Vercel
+.vercel/
+
+# Next.js
+.next/
+
+# NestJS
+# (dist/ is already covered above)
+
+# Turborepo
+.turbo/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Project specific logs
+apps/api/debug.log
+apps/api/debug*.log
+
+# Artifacts
+.gemini/

@@ -1,178 +1,201 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useForm } from 'react-hook-form';
-import { Plus, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import Cookies from "js-cookie";
+import { Calendar, Clock, AlertTriangle } from "lucide-react";
+
+// Helper: Minutes <-> HH:MM
+const toTimeStr = (minutes: number) => {
+    const h = Math.floor(minutes / 60).toString().padStart(2, '0');
+    const m = (minutes % 60).toString().padStart(2, '0');
+    return `${h}:${m}`;
+};
+
+const toMinutes = (timeStr: string) => {
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h * 60) + m;
+};
+
+const DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 
 export default function TimetablePage() {
-    const queryClient = useQueryClient();
-    const [showForm, setShowForm] = useState(false);
-    const [serverError, setServerError] = useState<string | null>(null);
+    const [sessions, setSessions] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-    // Fetch My Timetable
-    const { data: sessions, isLoading } = useQuery({
-        queryKey: ['timetable'],
-        queryFn: async () => {
-            const res = await fetch('http://localhost:3001/api/timetable/sessions'); // Uses cookie auth
-            if (!res.ok) return [];
-            return res.json();
-        }
+    // Form State
+    const [formData, setFormData] = useState({
+        dayOfWeek: "MONDAY",
+        startTime: "09:00",
+        endTime: "10:00",
+        subjectId: "", // Logic: Assuming IDs exist, but for MVP checking specific IDs or manual entry? 
+        // Ideally we fetch subjects. For demo, we might use simple strings or mock IDs if Subject API isn't ready.
+        // Looking at schema: Subject, User(Teacher), Classroom are required.
+        // I will use text inputs for IDs for now, or fetch if I can. 
+        // Let's assume user enters UUIDs or we fetch. 
+        // Actually, we don't have a Subject List UI yet. I'll use placeholders.
+        teacherId: "",
+        classroomId: ""
     });
 
-    // Create Session Mutation
-    const mutation = useMutation({
-        mutationFn: async (data: any) => {
-            // Convert local datetime to ISO or keep local? Backend expects ISO string.
-            const res = await fetch('http://localhost:3001/api/timetable/sessions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...data,
-                    // Hardcoding teacherId/subjectId/classroomId for demo if inputs are raw
-                    // Ideally selected from dropdowns
-                }),
+    const getHeaders = () => ({
+        "Content-Type": "application/json",
+        "x-tenant-id": "tenant-123",
+        "x-branch-id": "branch-101",
+        "x-user-role": Cookies.get("user-role") || "BRANCH_ADMIN",
+        "x-user-id": Cookies.get("user-id") || "demo-user",
+    });
+
+    const fetchTimetable = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch("/api/timetable/sessions", { headers: getHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                setSessions(data);
+            }
+        } catch (e) { toast.error("Failed to load timetable"); }
+        setLoading(false);
+    };
+
+    useEffect(() => { fetchTimetable(); }, []);
+
+    const handleCreate = async () => {
+        try {
+            // Convert to Int
+            const payload = {
+                ...formData,
+                startTime: toMinutes(formData.startTime),
+                endTime: toMinutes(formData.endTime),
+                // Mock IDs if empty for testing, or require user input
+                // User must provide valid IDs or it fails FK constraint.
+                // I'll assume the user knows IDs or I should fetch them.
+                // For the "Cloning Test", I will rely on the user entering IDs.
+            };
+
+            const res = await fetch("/api/timetable/sessions", {
+                method: "POST",
+                headers: getHeaders(),
+                body: JSON.stringify(payload)
             });
 
             if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.message || 'Conflict detected');
+                if (res.status === 409) {
+                    toast.error("Conflict Detected!", {
+                        description: err.details || "Double booking detected."
+                    });
+                    return;
+                }
+                throw new Error("Failed to create");
             }
-            return res.json();
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['timetable'] });
-            setShowForm(false);
-            setServerError(null);
-            alert('Class Scheduled!');
-        },
-        onError: (err) => {
-            setServerError(err.message);
-        }
-    });
 
-    const { register, handleSubmit } = useForm();
-
-    const onSubmit = (data: any) => {
-        setServerError(null); // Clear previous errors
-        // Construct Payload
-        const payload = {
-            dayOfWeek: 'MONDAY', // specific logic needed for real date parsing
-            startTime: `${data.date}T${data.startTime}:00.000Z`, // ISO format hack for MVP
-            endTime: `${data.date}T${data.endTime}:00.000Z`,
-            subjectId: data.subjectId, // UUID
-            teacherId: data.teacherId, // UUID
-            classroomId: data.classroomId // UUID
-        };
-        mutation.mutate(payload);
+            toast.success("Session Scheduled");
+            setIsDialogOpen(false);
+            fetchTimetable();
+        } catch (e) { toast.error("Error scheduling session"); }
     };
+
+    // Group by Day
+    const sessionsByDay = DAYS.reduce((acc, day) => {
+        acc[day] = sessions.filter(s => s.dayOfWeek === day).sort((a, b) => a.startTime - b.startTime);
+        return acc;
+    }, {} as Record<string, any[]>);
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold tracking-tight">Timetable</h1>
-                <button
-                    onClick={() => setShowForm(!showForm)}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                    <Plus size={20} />
-                    Schedule Class
-                </button>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight">Academic Timetable</h2>
+                    <p className="text-muted-foreground">Manage weekly schedules and resolve conflicts.</p>
+                </div>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button>+ Schedule Class</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Schedule New Session</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Day</Label>
+                                    <Select
+                                        value={formData.dayOfWeek}
+                                        onValueChange={v => setFormData({ ...formData, dayOfWeek: v })}
+                                    >
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {DAYS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Time</Label>
+                                    <div className="flex gap-2">
+                                        <Input type="time" value={formData.startTime} onChange={e => setFormData({ ...formData, startTime: e.target.value })} />
+                                        <span className="py-2">-</span>
+                                        <Input type="time" value={formData.endTime} onChange={e => setFormData({ ...formData, endTime: e.target.value })} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Subject ID (UUID)</Label>
+                                <Input value={formData.subjectId} onChange={e => setFormData({ ...formData, subjectId: e.target.value })} placeholder="e.g. sub-123" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Teacher ID (UUID)</Label>
+                                <Input value={formData.teacherId} onChange={e => setFormData({ ...formData, teacherId: e.target.value })} placeholder="e.g. user-123" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Classroom ID (UUID)</Label>
+                                <Input value={formData.classroomId} onChange={e => setFormData({ ...formData, classroomId: e.target.value })} placeholder="e.g. room-101" />
+                            </div>
+
+                            <Button onClick={handleCreate} className="w-full">Schedule Session</Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
 
-            {showForm && (
-                <Card className="border-blue-200 bg-blue-50">
-                    <CardHeader>
-                        <CardTitle>Add Class Session</CardTitle>
-                        <CardDescription>System will check for Teacher & Room conflicts automatically.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                            {serverError && (
-                                <div className="p-3 bg-red-100 text-red-700 rounded-md flex items-center gap-2">
-                                    <AlertCircle size={16} />
-                                    <span className="font-bold">Conflict:</span> {serverError}
-                                </div>
+            {/* Weekly Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                {DAYS.map(day => (
+                    <Card key={day} className="h-full">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-bold text-muted-foreground">{day}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            {sessionsByDay[day]?.length === 0 && (
+                                <p className="text-xs text-muted-foreground italic">No classes</p>
                             )}
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase text-blue-800">Date</label>
-                                    <input type="date" {...register('date')} required className="w-full p-2 border rounded" />
+                            {sessionsByDay[day]?.map(session => (
+                                <div key={session.id} className="p-3 border rounded-md text-sm bg-accent/10 hover:bg-accent/20 transition-colors">
+                                    <div className="flex items-center justify-between font-semibold mb-1">
+                                        <span>{session.subject?.name || 'Subject'}</span>
+                                        <span className="text-xs text-muted-foreground flex items-center">
+                                            <Clock className="w-3 h-3 mr-1" />
+                                            {toTimeStr(session.startTime)}
+                                        </span>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                        {session.teacher?.firstName || 'Teacher'} • {session.classroom?.name || 'Room'}
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase text-blue-800">Start Time</label>
-                                    <input type="time" {...register('startTime')} required className="w-full p-2 border rounded" />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase text-blue-800">End Time</label>
-                                    <input type="time" {...register('endTime')} required className="w-full p-2 border rounded" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase text-neutral-600">Subject ID</label>
-                                    <input {...register('subjectId')} placeholder="UUID" required className="w-full p-2 border rounded" />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase text-neutral-600">Teacher ID</label>
-                                    <input {...register('teacherId')} placeholder="UUID" required className="w-full p-2 border rounded" />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase text-neutral-600">Room ID</label>
-                                    <input {...register('classroomId')} placeholder="UUID" required className="w-full p-2 border rounded" />
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end pt-2">
-                                <button type="submit" className="px-6 py-2 bg-blue-700 text-white font-bold rounded shadow-sm hover:bg-blue-800">
-                                    Save to Schedule
-                                </button>
-                            </div>
-                        </form>
-                    </CardContent>
-                </Card>
-            )}
-
-            <Card>
-                <CardContent className="p-0">
-                    {/* List View */}
-                    <div className="border rounded-md overflow-hidden">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-neutral-100 uppercase text-xs font-bold text-neutral-500 border-b">
-                                <tr>
-                                    <th className="px-6 py-3">Day</th>
-                                    <th className="px-6 py-3">Time</th>
-                                    <th className="px-6 py-3">Subject</th>
-                                    <th className="px-6 py-3">Room</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {sessions?.map((s: any) => (
-                                    <tr key={s.id} className="bg-white hover:bg-neutral-50">
-                                        <td className="px-6 py-4 font-medium">{s.dayOfWeek}</td>
-                                        <td className="px-6 py-4 text-neutral-500">
-                                            {new Date(s.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
-                                            {new Date(s.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </td>
-                                        <td className="px-6 py-4">{s.subject?.name || s.subjectId}</td>
-                                        <td className="px-6 py-4">{s.classroom?.name || s.classroomId}</td>
-                                    </tr>
-                                ))}
-                                {(!sessions || sessions.length === 0) && (
-                                    <tr>
-                                        <td colSpan={4} className="px-6 py-8 text-center text-neutral-400 italic">
-                                            No classes scheduled for you.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                            ))}
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
         </div>
     );
 }

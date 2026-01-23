@@ -57,3 +57,7 @@ apps/api/debug*.log
 
 # Artifacts
 .gemini/
+
+# Databases
+*.db
+*.sqlite

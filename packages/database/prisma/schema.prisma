@@ -8,13 +8,39 @@ generator client_api {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
 // Global Context: Every table (except Tenant/Global) has branchId
 
+// enum CasteCategory {
+//   GM
+//   SC
+//   ST
+//   OBC
+// }
 
+// enum Religion {
+//   HINDU
+//   MUSLIM
+//   CHRISTIAN
+//   SIKH
+//   JAIN
+//   BUDDHIST
+//   OTHER
+// }
+
+// enum DocumentType {
+//   TC
+//   AADHAAR
+//   MARKS_CARD
+//   DL
+//   ID_PROOF
+//   CERTIFICATE
+//   ASSIGNMENT
+//   OTHER
+// }
 
 model Tenant {
   id        String   @id @default(uuid())
@@ -35,8 +61,6 @@ model Tenant {
 
   @@map("tenants")
 }
-
-// --- REPLACEMENT CONTENT ---
 
 model Branch {
   id        String   @id @default(uuid())
@@ -64,33 +88,23 @@ model Branch {
   transportAllocations  TransportAllocation[]
   libraryBooks          LibraryBook[]
   bookIssues            BookIssue[]
+  documents             Document[]
   
   staffProfiles   StaffProfile[]
   payrollLedgers  PayrollLedger[]
+  payrollRuns     PayrollRun[]
 
   @@map("branches")
 }
-
-enum UserRole {
-  GROUP_ADMIN
-  BRANCH_ADMIN
-  STAFF
-  STUDENT
-}
-
-enum AuthProvider {
-  CLERK
-  INTERNAL
-}
-
-
 
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String? 
-  role      UserRole
-  provider  AuthProvider @default(INTERNAL)
+  role      String   // UserRole
+
+  provider  String   @default("INTERNAL") // AuthProvider
+
   
   branchId  String?
   branch    Branch?  @relation(fields: [branchId], references: [id])
@@ -99,6 +113,7 @@ model User {
   staffProfile   StaffProfile?
   attendanceRecords AttendanceRecord[]
   timetables        Timetable[]
+  documents         Document[]
 
   deletedAt DateTime?
   createdAt DateTime @default(now())
@@ -119,22 +134,42 @@ model StudentProfile {
   lastName  String
   enrollmentNo String
 
+  // Demographics
+  gender      String?
+  dob         DateTime?
+  bloodGroup  String?
+
+  // Address
+  addressLine1 String?
+  city         String?
+  state        String?
+  addressPincode String? // Mapped from zipCode if needed, but keeping zipCode for now.
+  zipCode      String?
+
+  // Compliance
+  aadhaarNo    String?
+  satsId       String?
+  religion     String? // Religion enum
+  casteCategory String? // CasteCategory enum
+  nationality  String   @default("Indian")
+  
+  // Health & Emergency
+  allergies    String?
+  emergencyContactName String?
+  emergencyContactPhone String?
+
+  // Academic History
+  previousSchool String?
+  gradeLevel     String?
+
   feeLedgers FeeLedger[]
   examResults ExamResult[]
   transportAllocation TransportAllocation[]
   bookIssues          BookIssue[]
   
-  status    StudentStatus @default(ACTIVE)
+  status    String   @default("ACTIVE") // StudentStatus
 
   @@map("student_profiles")
-}
-
-enum StudentStatus {
-  ACTIVE
-  TRANSFERRED
-  DROPPED
-  ALUMNI
-  INACTIVE
 }
 
 model FeeStructure {
@@ -142,6 +177,9 @@ model FeeStructure {
   name      String
   amount    Decimal
   currency  String   @default("USD")
+  
+  // JSON string for installments e.g. [{"name": "Term 1", "amount": 500, "dueDate": "2024-01-01"}]
+  installments String?
   
   branchId  String
   branch    Branch   @relation(fields: [branchId], references: [id])
@@ -152,17 +190,6 @@ model FeeStructure {
   @@map("fee_structures")
 }
 
-enum FeeTransactionType {
-  DUE
-  PAYMENT
-}
-
-enum PaymentStatus {
-  PENDING
-  COMPLETED
-  FAILED
-}
-
 model FeeLedger {
   id        String   @id @default(uuid())
   studentId String
@@ -170,31 +197,25 @@ model FeeLedger {
   
   description String
   amount      Decimal 
-  type        FeeTransactionType
+  type        String // FeeTransactionType
+
 
   branchId  String
   branch    Branch   @relation(fields: [branchId], references: [id])
   
-  status    PaymentStatus @default(PENDING)
+  status    String @default("PENDING") // PaymentStatus
+
 
   createdAt DateTime @default(now())
 
   @@map("fee_ledgers")
 }
 
-// --- PHASE 2: Operational Core ---
-
-enum AttendanceStatus {
-  PRESENT
-  ABSENT
-  LATE
-  EXCUSED
-}
-
 model AttendanceRecord {
   id        String   @id @default(uuid())
   date      DateTime
-  status    AttendanceStatus
+  status    String // AttendanceStatus
+
   
   // Polymorphic-ish: Link to User (Student or Staff)
   userId    String
@@ -211,8 +232,6 @@ model AttendanceRecord {
 
   @@map("attendance_records")
 }
-
-// --- LIBRARY MODULE ---
 
 model LibraryBook {
   id        String   @id @default(uuid())
@@ -265,8 +284,6 @@ model BookIssue {
   @@index([bookId])
   @@index([studentId])
 }
-
-// --- TRANSPORT MODULE ---
 
 model TransportVehicle {
   id          String   @id @default(uuid())
@@ -354,24 +371,6 @@ model TransportAllocation {
   @@index([tenantId])
   @@index([branchId])
 }
-// Old TimeSlot/ClassSession models removed in favor of Timetable
-
-
-// --- PHASE 7: Academic Engine (Timetables, Exams, Audit) ---
-
-model AuditLog {
-  id        String   @id @default(uuid())
-  action    String   // CREATE, UPDATE, DELETE
-  resource  String   // Student, Exam, Fee
-  userId    String?  // Who did it
-  payload   Json?    // Before/After data
-  createdAt DateTime @default(now())
-  
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-
-  @@map("audit_logs")
-}
 
 model Subject {
   id        String   @id @default(uuid())
@@ -389,6 +388,7 @@ model Subject {
   updatedAt DateTime @updatedAt
   
   @@map("subjects")
+  @@unique([code, branchId])
 }
 
 model Classroom {
@@ -406,13 +406,14 @@ model Classroom {
   updatedAt DateTime @updatedAt
   
   @@map("classrooms")
+  @@unique([name, branchId])
 }
 
 model Timetable {
   id          String   @id @default(uuid())
   dayOfWeek   String   // MONDAY, TUESDAY...
-  startTime   DateTime
-  endTime     DateTime
+  startTime   Int      // Minutes from midnight (e.g., 540 = 9:00 AM)
+  endTime     Int      // Minutes from midnight (e.g., 600 = 10:00 AM)
   
   subjectId   String
   subject     Subject  @relation(fields: [subjectId], references: [id])
@@ -472,15 +473,14 @@ model ExamResult {
   @@map("exam_results")
 }
 
-// Old Models Deleted
-
-// --- PHASE 4: Intelligence & Back-Office ---
-
 model StaffProfile {
   id        String   @id @default(uuid())
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id])
   
+  firstName String   @default("Staff") // Default for migration, remove later if needed
+  lastName  String   @default("Member")
+
   branchId  String
   branch    Branch   @relation(fields: [branchId], references: [id])
 
@@ -489,16 +489,23 @@ model StaffProfile {
   baseSalary  Decimal
   joinDate    DateTime @default(now())
 
+  // Additional Info
+  qualification   String?
+  experienceYears Int? @default(0)
+  
+  // Banking
+  bankAccountNo   String?
+  bankIfsc        String?
+  panCard         String?
+
+  // Emergency
+  emergencyContactName  String?
+  emergencyContactPhone String?
+
   payrollLedgers PayrollLedger[]
   bookIssues     BookIssue[]
 
   @@map("staff_profiles")
-}
-
-enum PayrollStatus {
-  DRAFT
-  GENERATED
-  PAID
 }
 
 model PayrollLedger {
@@ -516,7 +523,8 @@ model PayrollLedger {
   totalDeductions Decimal
   netSalary     Decimal
   
-  status    PayrollStatus @default(DRAFT)
+  status    String @default("DRAFT") // PayrollStatus
+
   
   generatedAt DateTime @default(now())
   paidAt      DateTime?
@@ -524,7 +532,27 @@ model PayrollLedger {
   overrideAmount Decimal? // Manual Adjustment
   overrideReason String?
 
+  payrollRunId String?
+  payrollRun   PayrollRun? @relation(fields: [payrollRunId], references: [id])
+
   @@map("payroll_ledgers")
+}
+
+model PayrollRun {
+  id        String   @id @default(uuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+
+  month     DateTime // First day of the month
+  status    String   @default("DRAFT") // DRAFT, COMMITTED
+  totalPayout Decimal
+
+  ledgers   PayrollLedger[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payroll_runs")
 }
 
 model ReportingSnapshot {
@@ -532,10 +560,43 @@ model ReportingSnapshot {
   branchId  String
   
   type      String   // REVENUE, ATTENDANCE_SUMMARY, STAFF_RATIO
-  data      Json     // Flexible payload
+  data      String   // Reverted to String for SQLite
   
   capturedAt DateTime @default(now())
   
   @@index([branchId, type, capturedAt])
   @@map("reporting_snapshots")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String   // CREATE, UPDATE, DELETE
+  resource  String   // Student, Exam, Fee
+  userId    String?  // Who did it
+  payload   String?  // Reverted to String for SQLite
+  createdAt DateTime @default(now())
+  
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  title       String
+  url         String
+  type        String // DocumentType enum
+  description String?
+  
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  
+  branchId    String?
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("documents")
 }

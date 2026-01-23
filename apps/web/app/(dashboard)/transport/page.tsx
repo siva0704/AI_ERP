@@ -1,127 +1,236 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useForm } from 'react-hook-form';
-import { Plus, Bus, MapPin, UserPlus } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { DataTable } from "@/components/ui/data-table";
+import { ColumnDef } from "@tanstack/react-table";
+import { Loader2, Bus, UserPlus } from "lucide-react";
+import { toast } from "sonner";
+import Cookies from "js-cookie";
+
+// Types
+type TransportRoute = {
+    id: string;
+    name: string;
+    monthlyCost: string; // Decimal comes as string often
+    vehicle?: {
+        plateNumber: string;
+        driverName: string;
+    };
+};
 
 export default function TransportPage() {
-    const queryClient = useQueryClient();
-    const [showAddRoute, setShowAddRoute] = useState(false);
+    const [routes, setRoutes] = useState<TransportRoute[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    // 1. Fetch Routes
-    const { data: routes } = useQuery({
-        queryKey: ['transport.routes'],
-        queryFn: async () => {
-            const res = await fetch('http://localhost:3001/api/transport/routes');
-            return res.json();
-        }
+    // Form States
+    const [newRoute, setNewRoute] = useState({ name: "", monthlyCost: "", vehicleId: "" });
+    const [allocation, setAllocation] = useState({ routeId: "", studentId: "" });
+
+    // Helper for Headers
+    const getHeaders = () => ({
+        "Content-Type": "application/json",
+        "x-tenant-id": "tenant-123",
+        "x-branch-id": "branch-101",
+        "x-user-role": Cookies.get("user-role") || "BRANCH_ADMIN", // Default strict, but user might be GROUP_ADMIN
     });
 
-    // 2. Add Route
-    const addRouteMutation = useMutation({
-        mutationFn: async (data: any) => {
-            const res = await fetch('http://localhost:3001/api/transport/routes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...data, monthlyCost: Number(data.monthlyCost) }),
+    // Fetch Routes
+    const fetchRoutes = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch("/api/transport/routes", {
+                headers: getHeaders(),
             });
-            if (!res.ok) throw new Error('Failed');
-            return res.json();
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['transport.routes'] });
-            setShowAddRoute(false);
-            toast.success('Route Created');
+            if (!res.ok) {
+                const txt = await res.text();
+                throw new Error(`Failed to fetch routes: ${res.status} ${txt}`);
+            }
+            const data = await res.json();
+            setRoutes(data);
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to load routes");
+        } finally {
+            setLoading(false);
         }
-    });
+    };
 
-    // 3. Allocate Student
-    const allocateMutation = useMutation({
-        mutationFn: async (data: { routeId: string, studentId: string }) => {
-            const res = await fetch('http://localhost:3001/api/transport/allocate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
+    useEffect(() => {
+        fetchRoutes();
+    }, []);
+
+    // Create Route
+    const handleCreateRoute = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const res = await fetch("/api/transport/routes", {
+                method: "POST",
+                headers: getHeaders(),
+                body: JSON.stringify({
+                    name: newRoute.name,
+                    monthlyCost: parseFloat(newRoute.monthlyCost),
+                    // Assuming vehicle creation is separate or optional for now
+                }),
             });
-            if (!res.ok) throw new Error('Failed');
-            return res.json();
-        },
-        onSuccess: () => {
-            toast.success('Student Allocated & Fee Charged');
+            if (!res.ok) throw new Error("Failed to create route");
+            toast.success("Route created successfully");
+            setNewRoute({ name: "", monthlyCost: "", vehicleId: "" });
+            fetchRoutes();
+        } catch (error) {
+            toast.error("Error creating route");
         }
-    });
+    };
 
-    const { register, handleSubmit } = useForm();
+    // Allocate Student
+    const handleAllocate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!allocation.routeId || !allocation.studentId) return;
+
+        try {
+            const res = await fetch("/api/transport/allocate", {
+                method: "POST",
+                headers: getHeaders(),
+                body: JSON.stringify(allocation),
+            });
+            if (!res.ok) throw new Error("Failed to allocate student");
+            toast.success("Student allocated & Fee generated!");
+            setAllocation({ routeId: "", studentId: "" });
+        } catch (error) {
+            toast.error("Error allocating student");
+        }
+    };
+
+    // Columns
+    const columns: ColumnDef<TransportRoute>[] = [
+        {
+            accessorKey: "name",
+            header: "Route Name",
+        },
+        {
+            accessorKey: "monthlyCost",
+            header: "Monthly Cost",
+            cell: ({ row }) => `$${row.original.monthlyCost}`,
+        },
+        {
+            id: "actions",
+            header: "Action",
+            cell: ({ row }) => (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAllocation({ ...allocation, routeId: row.original.id })}
+                >
+                    Select for Allocation
+                </Button>
+            ),
+        },
+    ];
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold tracking-tight">Transport & Logistics</h1>
-                <button
-                    onClick={() => setShowAddRoute(!showAddRoute)}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                    <Plus size={20} /> New Route
-                </button>
+        <div className="space-y-8">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight">Transport Management</h2>
+                    <p className="text-muted-foreground">Manage routes, vehicles, and student allocations.</p>
+                </div>
             </div>
 
-            {/* Add Route Form */}
-            {showAddRoute && (
-                <Card className="bg-neutral-50 border-blue-200">
-                    <CardHeader><CardTitle>Create Transport Route</CardTitle></CardHeader>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                {/* Create Route Form */}
+                <Card className="col-span-3">
+                    <CardHeader>
+                        <CardTitle>Create New Route</CardTitle>
+                        <CardDescription>Add a new bus route to the system.</CardDescription>
+                    </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSubmit((d) => addRouteMutation.mutate(d))} className="flex gap-4 items-end">
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold">Route Name</label>
-                                <input {...register('name')} placeholder="e.g. Route A - North" className="p-2 border rounded w-64" required />
+                        <form onSubmit={handleCreateRoute} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Route Name</Label>
+                                <Input
+                                    id="name"
+                                    placeholder="e.g. North Route - Bus 1"
+                                    value={newRoute.name}
+                                    onChange={(e) => setNewRoute({ ...newRoute, name: e.target.value })}
+                                    required
+                                />
                             </div>
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold">Monthly Cost ($)</label>
-                                <input {...register('monthlyCost')} type="number" className="p-2 border rounded w-32" required />
+                            <div className="space-y-2">
+                                <Label htmlFor="cost">Monthly Cost ($)</Label>
+                                <Input
+                                    id="cost"
+                                    type="number"
+                                    placeholder="50.00"
+                                    value={newRoute.monthlyCost}
+                                    onChange={(e) => setNewRoute({ ...newRoute, monthlyCost: e.target.value })}
+                                    required
+                                />
                             </div>
-                            <button type="submit" className="px-4 py-2 bg-blue-700 text-white rounded font-bold">Save</button>
+                            <Button type="submit" className="w-full">
+                                <Bus className="mr-2 h-4 w-4" />
+                                Create Route
+                            </Button>
                         </form>
                     </CardContent>
                 </Card>
-            )}
 
-            {/* Route List */}
-            <div className="space-y-4">
-                {routes?.map((route: any) => (
-                    <Card key={route.id} className="hover:border-blue-300 transition-colors">
-                        <div className="p-6 flex justify-between items-center">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-blue-100 rounded-full text-blue-700">
-                                    <Bus size={24} />
+                {/* Allocation Form */}
+                <Card className="col-span-4">
+                    <CardHeader>
+                        <CardTitle>Student Allocation</CardTitle>
+                        <CardDescription>Assign a student to a route. This will generate a fee record.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleAllocate} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="routeId">Route ID</Label>
+                                    <Input
+                                        id="routeId"
+                                        placeholder="Select from table below"
+                                        value={allocation.routeId}
+                                        onChange={(e) => setAllocation({ ...allocation, routeId: e.target.value })}
+                                        required
+                                    />
                                 </div>
-                                <div>
-                                    <h3 className="font-bold text-lg">{route.name}</h3>
-                                    <p className="text-sm text-neutral-500">Cost: ${route.monthlyCost}/month</p>
+                                <div className="space-y-2">
+                                    <Label htmlFor="studentId">Student ID</Label>
+                                    <Input
+                                        id="studentId"
+                                        placeholder="Enter Student UUID"
+                                        value={allocation.studentId}
+                                        onChange={(e) => setAllocation({ ...allocation, studentId: e.target.value })}
+                                        required
+                                    />
                                 </div>
                             </div>
-
-                            <div className="flex items-center gap-4">
-                                <div className="text-right">
-                                    <div className="text-xs font-bold text-neutral-400 uppercase">Driver</div>
-                                    <div>{route.vehicle?.driverName || 'Unassigned'}</div>
-                                </div>
-                                <button
-                                    onClick={() => {
-                                        const studentId = prompt(`Assign Student to ${route.name} (Enter ID):`);
-                                        if (studentId) allocateMutation.mutate({ routeId: route.id, studentId });
-                                    }}
-                                    className="flex items-center gap-2 px-3 py-2 bg-neutral-100 hover:bg-neutral-200 rounded text-sm font-bold"
-                                >
-                                    <UserPlus size={16} /> Assign Student
-                                </button>
-                            </div>
-                        </div>
-                    </Card>
-                ))}
+                            <Button type="submit" variant="secondary" className="w-full">
+                                <UserPlus className="mr-2 h-4 w-4" />
+                                Assign & Generate Fee
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
             </div>
+
+            {/* Routes Table */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Active Routes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {loading ? (
+                        <div className="flex justify-center p-4">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                        </div>
+                    ) : (
+                        <DataTable columns={columns} data={routes} />
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }

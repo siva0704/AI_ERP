@@ -1,15 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GlobalContextService } from '../../common/context/global-context.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class FeesService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly context: GlobalContextService,
+        private readonly configService: ConfigService
     ) { }
 
     async createFeeStructure(data: { name: string; amount: number; currency: string }) {
+        if (this.configService.get('MOCK_MODE')) {
+            return {
+                id: 'mock-fee-structure-id',
+                name: data.name,
+                amount: data.amount,
+                currency: data.currency,
+                branchId: 'mock-branch-id',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            }
+        }
         const branchId = this.context.branchId || 'default-branch-id';
         return this.prisma.feeStructure.create({
             data: {
@@ -22,6 +35,14 @@ export class FeesService {
     }
 
     async getFeeStructures() {
+        if (this.configService.get('MOCK_MODE')) {
+            return [
+                { id: '1', name: 'Annual Tuition', amount: 5000, currency: 'USD', branchId: 'mock-branch-1' },
+                { id: '2', name: 'Library Fee', amount: 200, currency: 'USD', branchId: 'mock-branch-1' },
+                { id: '3', name: 'Lab Fee', amount: 300, currency: 'USD', branchId: 'mock-branch-1' }
+            ];
+        }
+
         const branchId = this.context.branchId || 'default-branch-id';
         return this.prisma.feeStructure.findMany({
             where: { branchId }
@@ -29,6 +50,18 @@ export class FeesService {
     }
 
     async collectPayment(data: { studentId: string; amount: number; description: string; paymentMethod?: string }) {
+        if (this.configService.get('MOCK_MODE')) {
+            return {
+                id: 'mock-payment-id',
+                studentId: data.studentId,
+                amount: data.amount,
+                description: data.description,
+                type: 'PAYMENT',
+                status: 'COMPLETED',
+                createdAt: new Date()
+            }
+        }
+
         const branchId = this.context.branchId || 'default-branch-id';
 
         // Create a Ledger Entry for Payment
@@ -47,6 +80,16 @@ export class FeesService {
     }
 
     async getStudentDues(studentId: string) {
+        if (this.configService.get('MOCK_MODE')) {
+            return {
+                balance: 1500,
+                history: [
+                    { id: '1', type: 'DUE', amount: 2000, description: 'Tuition Fee', createdAt: new Date() },
+                    { id: '2', type: 'PAYMENT', amount: 500, description: 'Partial Payment', createdAt: new Date() }
+                ]
+            };
+        }
+
         const ledgers = await this.prisma.feeLedger.findMany({
             where: { studentId },
             orderBy: { createdAt: 'desc' }

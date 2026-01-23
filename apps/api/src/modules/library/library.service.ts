@@ -1,10 +1,14 @@
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class LibraryService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private configService: ConfigService
+    ) { }
 
     async createBook(tenantId: string, branchId: string, data: any) {
         return this.prisma.libraryBook.create({
@@ -13,12 +17,30 @@ export class LibraryService {
     }
 
     async getBooks(tenantId: string, branchId: string) {
+        if (this.configService.get('MOCK_MODE')) {
+            return [
+                { id: '1', title: 'The Great Gatsby', author: 'F. Scott Fitzgerald', status: 'AVAILABLE', isbn: '978-0743273565' },
+                { id: '2', title: '1984', author: 'George Orwell', status: 'ISSUED', isbn: '978-0451524935' },
+                { id: '3', title: 'To Kill a Mockingbird', author: 'Harper Lee', status: 'AVAILABLE', isbn: '978-0061120084' }
+            ];
+        }
         return this.prisma.libraryBook.findMany({
             where: { tenantId, branchId },
         });
     }
 
     async issueBook(tenantId: string, branchId: string, bookId: string, studentId: string) {
+        // 0. Check Max Books Limit (Constraint: Max 2)
+        const activeIssues = await this.prisma.bookIssue.count({
+            where: {
+                studentId,
+                returnDate: null
+            }
+        });
+        if (activeIssues >= 2) {
+            throw new BadRequestException('Student has reached the maximum limit of 2 issued books.');
+        }
+
         // 1. Check if book available
         const book = await this.prisma.libraryBook.findUnique({ where: { id: bookId } });
         if (!book || book.status !== 'AVAILABLE') throw new NotFoundException('Book not available');
@@ -40,6 +62,37 @@ export class LibraryService {
 
         return issue;
     }
+
+    async getActiveIssues(tenantId: string, branchId: string) {
+        if (this.configService.get('MOCK_MODE')) {
+            const now = new Date();
+            const dueDate = new Date();
+            dueDate.setDate(now.getDate() + 14);
+            return [
+                {
+                    id: 'issue-1',
+                    book: { title: '1984', author: 'George Orwell' },
+                    student: { firstName: 'John', lastName: 'Doe', enrollmentNo: 'S123' },
+                    issueDate: now,
+                    dueDate: dueDate
+                }
+            ];
+        }
+
+        return this.prisma.bookIssue.findMany({
+            where: {
+                tenantId,
+                branchId,
+                returnDate: null,
+            },
+            include: {
+                book: true,
+                student: true,
+            },
+        });
+    }
+
+
 
     async returnBook(issueId: string) {
         const issue = await this.prisma.bookIssue.findUnique({

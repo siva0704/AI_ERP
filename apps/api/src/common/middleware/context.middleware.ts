@@ -11,12 +11,15 @@ export class ContextMiddleware implements NestMiddleware {
         // In Prod: Do NOT trust headers directly unless from a trusted Gateway or validated JWT
         const userId = (req.headers['x-user-id'] as string) || 'demo-user-id';
         const role = (req.headers['x-user-role'] as string) || 'BRANCH_ADMIN'; // Default to Admin for Mock Testing
-        const branchId = (req.headers['x-branch-id'] as string) || 'default-branch';
+        const branchId = (req.headers['x-branch-id'] as string) || 'branch-101';
+        const tenantId = (req.headers['x-tenant-id'] as string) || 'tenant-123';
+        console.log(`DEBUG: Middleware setting context - Tenant: ${tenantId}, Branch: ${branchId}`);
 
         const context = {
             userId,
             role,
             branchId,
+            tenantId
         };
 
         // Initialize AsyncLocalStorage context for this request

@@ -38,17 +38,7 @@ export class AuditInterceptor implements NestInterceptor {
 
                             // Todo: properly resolve tenant. For now, we wrap in try/catch to not break API.
 
-                            /* 
-                           await this.prisma.auditLog.create({
-                               data: {
-                                   action: method,
-                                   resource: req.url,
-                                   userId: user?.id || 'anonymous',
-                                   payload: method !== 'GET' ? JSON.stringify(req.body) : undefined,
-                                   tenantId: 'default-tenant-id-from-seed' // This is risky without lookup
-                               }
-                           });
-                           */
+
 
                             // BETTER APPROACH: Just log to console for Phase 7 start, 
                             // and fully implement DB write once we have robust Tenant Context.
@@ -65,7 +55,7 @@ export class AuditInterceptor implements NestInterceptor {
                                             action: method,
                                             resource: req.url,
                                             userId: user.sub || user.id, // Auth strategy dependent
-                                            payload: method !== 'DELETE' ? req.body : {}, // Prisma handles Json type
+                                            payload: method !== 'DELETE' ? JSON.stringify(req.body) : '{}',
                                             tenantId: tenant.id
                                         }
                                     });

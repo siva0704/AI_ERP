@@ -23,21 +23,26 @@ export class TimetableController {
     @Roles('BRANCH_ADMIN')
     async scheduleSession(@Body() body: any) {
         const branchId = this.context.branchId || 'default';
-        return this.timetableService.createSession({
+        const tenantId = this.context.tenantId || 'default';
+        return this.timetableService.createSession(tenantId, branchId, {
             ...body,
-            branchId
+            branchId // Redundant but harmless, service uses argument
         });
     }
 
     @Get('sessions')
     @Roles('BRANCH_ADMIN', 'STAFF', 'STUDENT')
     async getTimetable(@Req() req: any) {
-        // Return My Timetable for Teacher/Student
-        // Return All for Admin?
-        // For MVP Phase 7, let's just expose a "get mine" relative to user ID, or generic list for Admin
         const user = req.user;
-        // If admin, maybe search by query params?
-        // Let's implement specific `my` endpoint
+        const branchId = this.context.branchId || '';
+        const role = this.context.role;
+
+        // If Admin, fetch ALL for branch
+        if (role === 'BRANCH_ADMIN' || role === 'GROUP_ADMIN') {
+            return this.timetableService.getBranchTimetable(branchId);
+        }
+
+        // Else, fetch personal
         return this.timetableService.getMyTimetable(user?.sub || user?.id);
     }
 }

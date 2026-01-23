@@ -1,15 +1,71 @@
 version: '3.8'
+
 services:
   postgres:
     image: postgres:15-alpine
+    container_name: ai_erp_db
     environment:
-      POSTGRES_USER: user
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydb
+      POSTGRES_DB: ai_erp
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    container_name: ai_erp_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: ai_erp_api
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/ai_erp?schema=public
+      PORT: 3001
+      JWT_SECRET: dev-secret-docker
+      OPENAI_API_KEY: sk-placeholder-docker
+      MOCK_MODE: "false"
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - app-network
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: ai_erp_web
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    depends_on:
+      - api
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   postgres_data:

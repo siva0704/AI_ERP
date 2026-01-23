@@ -46,4 +46,13 @@ export class ExamController {
             branchId
         });
     }
+
+    @Get('results/:studentId')
+    @Roles('BRANCH_ADMIN', 'STAFF', 'STUDENT')
+    async getStudentResults(@Param('studentId') studentId: string) {
+        const branchId = this.context.branchId || 'default';
+        // Basic Security: Student can only access their own?
+        // For MVP, letting Admin check any student.
+        return this.examService.getStudentMarksheet(studentId, branchId);
+    }
 }

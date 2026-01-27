@@ -72,4 +72,53 @@ export class CreateAdmissionDto {
     @IsString({ each: true })
     @IsOptional()
     documents?: string[];
+
+    // Phase 20 New Fields
+    @IsString()
+    @IsOptional()
+    motherTongue?: string;
+
+    @IsString()
+    @IsOptional()
+    guardianRelation?: string;
+
+    @IsString()
+    @IsOptional()
+    secondLanguage?: string;
+
+    @IsString()
+    @IsOptional()
+    thirdLanguage?: string;
+
+    @IsString()
+    @IsOptional()
+    classroomId?: string;
+
+    @IsString()
+    @IsOptional()
+    religion?: string;
+
+    @IsString()
+    @IsOptional()
+    casteCategory?: string;
+
+    @IsString()
+    @IsOptional()
+    nationality?: string;
+
+    @IsString()
+    @IsOptional()
+    aadhaarNo?: string;
+
+    @IsString()
+    @IsOptional()
+    satsId?: string;
+
+    @IsString()
+    @IsOptional()
+    allergies?: string;
+
+    @IsString()
+    @IsOptional()
+    pincode?: string;
 }

@@ -67,7 +67,23 @@ export class AdmissionService {
                     state: dto.state,
                     zipCode: dto.zipCode,
                     previousSchool: dto.previousSchool,
-                    gradeLevel: dto.gradeLevel
+                    gradeLevel: dto.gradeLevel,
+
+                    // Phase 20 Mappings
+                    motherTongue: dto.motherTongue,
+                    guardianName: dto.guardianName,
+                    guardianRelation: dto.guardianRelation,
+                    secondLanguage: dto.secondLanguage,
+                    thirdLanguage: dto.thirdLanguage,
+                    religion: dto.religion,
+                    casteCategory: dto.casteCategory,
+                    nationality: dto.nationality,
+                    aadhaarNo: dto.aadhaarNo,
+                    satsId: dto.satsId,
+                    allergies: dto.allergies,
+                    pincode: dto.pincode,
+
+                    classroom: dto.classroomId ? { connect: { id: dto.classroomId } } : undefined,
                 }
             });
 

@@ -10,7 +10,8 @@
         "build": "turbo run build",
         "dev": "turbo run dev",
         "lint": "turbo run lint",
-        "format": "prettier --write \"**/*.{ts,tsx,md}\""
+        "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+        "prod:check": "docker-compose down -v && docker-compose up --build -d && node verify-ecosystem.js"
     },
     "devDependencies": {
         "turbo": "latest",

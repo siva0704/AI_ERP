@@ -19,22 +19,20 @@ import { PayrollModule } from './modules/payroll/payroll.module';
 import { NotificationModule } from './modules/notifications/notification.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
 import { DocumentModule } from './modules/documents/document.module';
+import { UploadModule } from './modules/upload/upload.module';
+import { StudentModule } from './modules/student/student.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { HealthModule } from './modules/health/health.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { ContextMiddleware } from './common/middleware/context.middleware';
 
-import * as Joi from 'joi';
+import { validate } from './config/env.validation';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      validationSchema: Joi.object({
-        DATABASE_URL: Joi.string().required(),
-        JWT_SECRET: Joi.string().required(),
-        OPENAI_API_KEY: Joi.string().required(),
-        PORT: Joi.number().default(3001),
-        MOCK_MODE: Joi.boolean().default(true),
-      }),
+      validate,
     }),
     PrismaModule,
     GlobalContextModule,
@@ -51,6 +49,10 @@ import * as Joi from 'joi';
     NotificationModule,
     AssistantModule,
     DocumentModule,
+    UploadModule,
+    StudentModule,
+    AuditModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [

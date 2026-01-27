@@ -1,14 +1,16 @@
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 generator client_api {
   provider = "prisma-client-js"
   output   = "../../../apps/api/node_modules/.prisma/client"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -138,29 +140,40 @@ model StudentProfile {
   gender      String?
   dob         DateTime?
   bloodGroup  String?
+  religion    String?  // HINDU, MUSLIM, etc.
+  casteCategory String? // GM, SC, ST, OBC, CAT1
+  nationality String   @default("Indian")
+  motherTongue String? // Added for Phase 20
 
   // Address
   addressLine1 String?
   city         String?
-  state        String?
-  addressPincode String? // Mapped from zipCode if needed, but keeping zipCode for now.
-  zipCode      String?
-
-  // Compliance
-  aadhaarNo    String?
-  satsId       String?
-  religion     String? // Religion enum
-  casteCategory String? // CasteCategory enum
-  nationality  String   @default("Indian")
+  taluk        String?
+  district     String?
+  state        String?  @default("Karnataka")
+  pincode      String?
+  zipCode      String?  // Deprecated in favor of pincode, kept for backward comp.
   
+  // Compliance - Indian Standards
+  aadhaarNo    String?  @unique
+  satsId       String?  // Karnataka STS ID
+
   // Health & Emergency
   allergies    String?
   emergencyContactName String?
   emergencyContactPhone String?
+  guardianName String? // Added for Phase 20
+  guardianRelation String? // Added for Phase 20
 
   // Academic History
   previousSchool String?
   gradeLevel     String?
+  
+  classroomId    String? // Added for Phase 20
+  classroom      Classroom? @relation(fields: [classroomId], references: [id])
+  
+  secondLanguage String? // Added for Phase 20
+  thirdLanguage  String? // Added for Phase 20
 
   feeLedgers FeeLedger[]
   examResults ExamResult[]
@@ -169,6 +182,10 @@ model StudentProfile {
   
   status    String   @default("ACTIVE") // StudentStatus
 
+  @@index([enrollmentNo])
+  @@index([aadhaarNo])
+  
+  deletedAt DateTime?
   @@map("student_profiles")
 }
 
@@ -208,6 +225,10 @@ model FeeLedger {
 
   createdAt DateTime @default(now())
 
+  @@index([status])
+  @@index([studentId])
+  
+  deletedAt DateTime?
   @@map("fee_ledgers")
 }
 
@@ -400,6 +421,7 @@ model Classroom {
   branch    Branch   @relation(fields: [branchId], references: [id])
   
   timetables Timetable[]
+  students   StudentProfile[]
 
   deletedAt DateTime?
   createdAt DateTime @default(now())
@@ -493,10 +515,18 @@ model StaffProfile {
   qualification   String?
   experienceYears Int? @default(0)
   
-  // Banking
+  // Banking & Compliance
   bankAccountNo   String?
   bankIfsc        String?
-  panCard         String?
+  panNumber       String?
+  panCard         String? // Legacy / Duplicate? Keeping for now or assuming mapped to same concept? Prompt says "panNumber". I'll add "panNumber" and leave "panCard" if it exists, or consolidate. Schema has "panCard". I will use "panNumber" as requested and maybe alias or just add it.
+  
+  ifscCode        String? // Redundant with bankIfsc? Prompt says `ifscCode`. Schema has `bankIfsc`. I will add `ifscCode` and `epfNumber`.
+  epfNumber       String?
+  // Transport Compliance (Drivers)
+  licenseNumber   String?  @unique
+  badgeNumber     String?
+  licenseExpiry   DateTime?
 
   // Emergency
   emergencyContactName  String?
@@ -505,6 +535,9 @@ model StaffProfile {
   payrollLedgers PayrollLedger[]
   bookIssues     BookIssue[]
 
+  @@index([panNumber])
+  
+  deletedAt DateTime?
   @@map("staff_profiles")
 }
 
@@ -571,23 +604,38 @@ model ReportingSnapshot {
 model AuditLog {
   id        String   @id @default(uuid())
   action    String   // CREATE, UPDATE, DELETE
-  resource  String   // Student, Exam, Fee
+  resource  String   // Endpoint or Resource Name (e.g. /api/students)
+  
+  entity    String?  // StudentProfile, StaffProfile
+  entityId  String?  // UUID of the entity modified
+  
   userId    String?  // Who did it
-  payload   String?  // Reverted to String for SQLite
+  
+  reqPayload String? // Full request body (Masked)
+  oldData   String?  // Snapshot before update (JSON)
+  newData   String?  // Snapshot after update (JSON)
+  
+  duration  Int?     // Execution time in ms
+
   createdAt DateTime @default(now())
   
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
-
+  
+  branchId  String?  // Optional, if context allows
+  
   @@map("audit_logs")
+  @@index([tenantId])
+  @@index([entity, entityId])
 }
 
 model Document {
   id          String   @id @default(uuid())
-  title       String
+  title       String?  // Optional if type covers it
+  type        String   // TC, AADHAAR, DL, MARKS_CARD
+  
   url         String
-  type        String // DocumentType enum
-  description String?
+  mimeType    String?
   
   ownerId     String
   owner       User     @relation(fields: [ownerId], references: [id])
@@ -597,6 +645,7 @@ model Document {
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
 
   @@map("documents")
 }

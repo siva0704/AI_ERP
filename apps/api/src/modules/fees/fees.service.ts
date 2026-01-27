@@ -91,7 +91,7 @@ export class FeesService {
         }
 
         const ledgers = await this.prisma.feeLedger.findMany({
-            where: { studentId },
+            where: { studentId, deletedAt: null },
             orderBy: { createdAt: 'desc' }
         });
 

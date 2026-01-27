@@ -99,47 +99,96 @@ async function main() {
     console.log(`✅ Library Catalog Seeded (${books.length} Books)`);
 
     // 5. Create Academic Structure (Karnataka Standard)
-    const classNames = [
-        "Class 1", "Class 2", "Class 3", "Class 4", "Class 5",
-        "Class 6", "Class 7", "Class 8", "Class 9", "Class 10",
-        "PUC I (Science)", "PUC I (Commerce)", "PUC I (Arts)",
-        "PUC II (Science)", "PUC II (Commerce)", "PUC II (Arts)"
+    // 5. Create Academic Structure (Karnataka State Board)
+    // Primary (1-5), Higher (6-10), PUC (11-12)
+
+    const levels = [
+        { name: "Class 1", stage: "PRIMARY" }, { name: "Class 2", stage: "PRIMARY" },
+        { name: "Class 3", stage: "PRIMARY" }, { name: "Class 4", stage: "PRIMARY" },
+        { name: "Class 5", stage: "PRIMARY" },
+        { name: "Class 6", stage: "HIGHER" }, { name: "Class 7", stage: "HIGHER" },
+        { name: "Class 8", stage: "HIGHER" }, { name: "Class 9", stage: "HIGHER" },
+        { name: "Class 10", stage: "HIGHER" },
+        { name: "PUC I (Science)", stage: "PUC_SCI" },
+        { name: "PUC I (Commerce)", stage: "PUC_COM" },
+        { name: "PUC I (Arts)", stage: "PUC_ARTS" },
+        { name: "PUC II (Science)", stage: "PUC_SCI" },
+        { name: "PUC II (Commerce)", stage: "PUC_COM" },
+        { name: "PUC II (Arts)", stage: "PUC_ARTS" }
     ];
 
-    for (const className of classNames) {
+    for (const lvl of levels) {
         const existing = await prisma.classroom.findFirst({
-            where: { name: className, branchId: branch.id }
+            where: { name: lvl.name, branchId: branch.id }
         });
 
         if (!existing) {
             await prisma.classroom.create({
                 data: {
-                    name: className,
+                    name: lvl.name,
                     capacity: 40,
                     branchId: branch.id
                 }
             });
         }
     }
-    console.log(`✅ Classrooms Seeded (${classNames.length} Classes)`);
+    console.log(`✅ Classrooms Seeded (${levels.length} Classes)`);
 
-    const subjects = [
-        { name: "Kannada", code: "KAN-L1" },
-        { name: "English", code: "ENG-L2" },
-        { name: "Hindi", code: "HIN-L3" },
-        { name: "Mathematics", code: "MAT" },
-        { name: "Science", code: "SCI" },
-        { name: "Social Science", code: "SOC" },
-        { name: "Physics", code: "PHY" },
-        { name: "Chemistry", code: "CHE" },
-        { name: "Biology", code: "BIO" },
-        { name: "Computer Science", code: "CS" },
-        { name: "Accountancy", code: "ACC" },
-        { name: "Business Studies", code: "BUS" },
-        { name: "Economics", code: "ECO" },
+    // Define Subjects by Stage
+    const primarySubjects = [
+        { name: "Kannada", code: "KAN-PRI" },
+        { name: "English", code: "ENG-PRI" },
+        { name: "Mathematics", code: "MAT-PRI" },
+        { name: "Environmental Science", code: "EVS-PRI" }
     ];
 
-    for (const sub of subjects) {
+    const higherSubjects = [
+        { name: "Kannada", code: "KAN-HIG" },
+        { name: "English", code: "ENG-HIG" },
+        { name: "Hindi", code: "HIN-HIG" },
+        { name: "Mathematics", code: "MAT-HIG" },
+        { name: "Science", code: "SCI-HIG" },
+        { name: "Social Science", code: "SOC-HIG" }
+    ];
+
+    const pucScienceSubjects = [
+        { name: "Physics", code: "PHY-PUC" },
+        { name: "Chemistry", code: "CHE-PUC" },
+        { name: "Mathematics", code: "MAT-PUC" },
+        { name: "Biology", code: "BIO-PUC" },
+        { name: "Computer Science", code: "CS-PUC" },
+        { name: "English", code: "ENG-PUC" }
+    ];
+
+    const pucCommerceSubjects = [
+        { name: "Accountancy", code: "ACC-PUC" },
+        { name: "Business Studies", code: "BUS-PUC" },
+        { name: "Economics", code: "ECO-PUC" },
+        { name: "Computer Science", code: "CS-COM-PUC" },
+        { name: "English", code: "ENG-PUC" }
+    ];
+
+    const pucArtsSubjects = [
+        { name: "History", code: "HIS-PUC" },
+        { name: "Political Science", code: "POL-PUC" },
+        { name: "Sociology", code: "SOC-PUC" },
+        { name: "Economics", code: "ECO-PUC" },
+        { name: "English", code: "ENG-PUC" }
+    ];
+
+    const allSubjects = [
+        ...primarySubjects,
+        ...higherSubjects,
+        ...pucScienceSubjects,
+        ...pucCommerceSubjects,
+        ...pucArtsSubjects
+    ];
+
+    // Deduplicate by code
+    const uniqueSubjects = Array.from(new Map(allSubjects.map(s => [s.code, s])).values());
+
+    for (const sub of uniqueSubjects) {
+        // Upsert to ensure we can update names if codes exist, or skip if exists
         const existing = await prisma.subject.findFirst({
             where: { code: sub.code, branchId: branch.id }
         });
@@ -154,7 +203,7 @@ async function main() {
             });
         }
     }
-    console.log(`✅ Subjects Seeded (${subjects.length} Subjects)`);
+    console.log(`✅ Subjects Seeded (${uniqueSubjects.length} Unique Subjects)`);
 
     console.log('🌱 Seed Complete!');
 }

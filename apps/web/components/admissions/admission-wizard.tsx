@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { ChevronRight, ChevronLeft, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FileUpload } from '@/components/ui/file-upload';
+import { SuccessView } from '@/components/common/success-view';
 
 // Zod Schemas
 const identitySchema = z.object({
@@ -70,6 +72,7 @@ export function AdmissionWizard() {
     const { createAdmission } = useAdmissions();
     const [step, setStep] = useState(1);
     const [isMounted, setIsMounted] = useState(false);
+    const [successData, setSuccessData] = useState<any>(null); // Store success details
 
     const form = useForm<AdmissionFormValues>({
         resolver: zodResolver(admissionSchema),
@@ -167,10 +170,14 @@ export function AdmissionWizard() {
 
     const onSubmit = (data: AdmissionFormValues) => {
         createAdmission.mutate(data, {
-            onSuccess: () => {
+            onSuccess: (responseData) => {
                 toast.success("Student admitted successfully!");
                 localStorage.removeItem('admission-wizard-draft-v2');
-                router.push('/admissions');
+                setSuccessData({
+                    firstName: data.firstName,
+                    lastName: data.lastName,
+                    id: responseData?.id || 'NEW-ID'
+                });
             },
             onError: (error) => {
                 toast.error(`Error: ${error.message}`);
@@ -179,6 +186,36 @@ export function AdmissionWizard() {
     };
 
     if (!isMounted) return null;
+
+    if (successData) {
+        return (
+            <SuccessView
+                title="Admission Complete!"
+                subtitle="The student has been successfully enrolled in the system."
+                summaryItems={[
+                    { label: 'Student Name', value: `${successData.firstName} ${successData.lastName}` },
+                    { label: 'Class', value: form.getValues('gradeLevel') },
+                    { label: 'Admission Fee', value: '$500.00 (Pending)' }
+                ]}
+                actionButtons={[
+                    {
+                        label: 'Admit Another Student',
+                        onClick: () => {
+                            setSuccessData(null);
+                            setStep(1);
+                            form.reset();
+                        },
+                        variant: 'outline'
+                    },
+                    {
+                        label: 'View Student Profile',
+                        onClick: () => router.push(`/students/${successData.id}`), // Navigate to new profile
+                        variant: 'default'
+                    }
+                ]}
+            />
+        );
+    }
 
     return (
         <div className="max-w-4xl mx-auto py-8">

@@ -3,6 +3,7 @@ import { StaffService } from './staff.service';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { GlobalContextService } from '../../common/context/global-context.service';
+import { CreateStaffDto } from './dto/create-staff.dto';
 
 @Controller('staff')
 @UseGuards(RolesGuard)
@@ -22,7 +23,7 @@ export class StaffController {
 
     @Post()
     @Roles('GROUP_ADMIN', 'BRANCH_ADMIN')
-    async createStaffProfile(@Body() body: any) {
+    async createStaffProfile(@Body() body: CreateStaffDto) {
         const branchId = this.context.branchId;
         if (!branchId) throw new Error('Branch Context Missing');
 

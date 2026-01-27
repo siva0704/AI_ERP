@@ -8,6 +8,7 @@ import { KPICard } from '../../../components/dashboard/kpi-card';
 import { Button } from '../../../components/ui/button';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { format } from 'date-fns';
+import { ModuleErrorBoundary } from '../../../components/shared/error-boundary';
 
 export default function DashboardPage() {
     const [stats, setStats] = useState<any>(null);
@@ -26,24 +27,30 @@ export default function DashboardPage() {
         try {
             const headers = {
                 'x-user-role': userRole,
-                'x-branch-id': 'branch-101' // In real app, from context
+                'x-branch-id': 'branch-101'
             };
 
-            const [resKPI, resTrend, resMatrix] = await Promise.all([
+            // Fetch independently to allow partial loading
+            const [resKPI, resTrend, resMatrix] = await Promise.allSettled([
                 fetch('/api/reporting/branch-overview', { headers }),
                 fetch('/api/reporting/revenue-trend', { headers }),
                 fetch('/api/reporting/attendance-matrix', { headers })
             ]);
 
-            if (resKPI.ok && resTrend.ok && resMatrix.ok) {
-                setStats(await resKPI.json());
-                setTrend(await resTrend.json());
-                setMatrix(await resMatrix.json());
-            } else {
-                console.error("Partial failure in fetching reports");
+            if (resKPI.status === 'fulfilled' && resKPI.value.ok) {
+                setStats(await resKPI.value.json());
             }
+
+            if (resTrend.status === 'fulfilled' && resTrend.value.ok) {
+                setTrend(await resTrend.value.json());
+            }
+
+            if (resMatrix.status === 'fulfilled' && resMatrix.value.ok) {
+                setMatrix(await resMatrix.value.json());
+            }
+
         } catch (error) {
-            console.error("Failed to fetch dashboard stats", error);
+            console.error("Dashboard fetch error", error);
         } finally {
             setLoading(false);
         }
@@ -124,49 +131,53 @@ export default function DashboardPage() {
                 {/* Revenue Trend (30 Days) */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                     <h3 className="text-lg font-bold text-slate-900 mb-6">Revenue Trend (30 Days)</h3>
-                    <div className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={trend}>
-                                <defs>
-                                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis
-                                    dataKey="name"
-                                    tickFormatter={(str) => format(new Date(str), 'MMM d')}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <YAxis axisLine={false} tickLine={false} />
-                                <Tooltip labelFormatter={(label) => format(new Date(label), 'MMM d, yyyy')} />
-                                <Area type="monotone" dataKey="revenue" stroke="#10b981" fillOpacity={1} fill="url(#colorRevenue)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
+                    <ModuleErrorBoundary fallbackTitle="Revenue Chart Failed">
+                        <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={trend}>
+                                    <defs>
+                                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis
+                                        dataKey="name"
+                                        tickFormatter={(str) => format(new Date(str), 'MMM d')}
+                                        axisLine={false}
+                                        tickLine={false}
+                                    />
+                                    <YAxis axisLine={false} tickLine={false} />
+                                    <Tooltip labelFormatter={(label) => format(new Date(label), 'MMM d, yyyy')} />
+                                    <Area type="monotone" dataKey="revenue" stroke="#10b981" fillOpacity={1} fill="url(#colorRevenue)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </ModuleErrorBoundary>
                 </div>
 
                 {/* Attendance Matrix (Weekly) */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                     <h3 className="text-lg font-bold text-slate-900 mb-6">Attendance Trend (7 Days)</h3>
-                    <div className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={matrix}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis
-                                    dataKey="name"
-                                    tickFormatter={(str) => format(new Date(str), 'EEE')}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <YAxis axisLine={false} tickLine={false} />
-                                <Tooltip labelFormatter={(label) => format(new Date(label), 'MMM d, yyyy')} />
-                                <Bar dataKey="present" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Present %" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
+                    <ModuleErrorBoundary fallbackTitle="Attendance Stats Failed">
+                        <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={matrix}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis
+                                        dataKey="name"
+                                        tickFormatter={(str) => format(new Date(str), 'EEE')}
+                                        axisLine={false}
+                                        tickLine={false}
+                                    />
+                                    <YAxis axisLine={false} tickLine={false} />
+                                    <Tooltip labelFormatter={(label) => format(new Date(label), 'MMM d, yyyy')} />
+                                    <Bar dataKey="present" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Present %" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </ModuleErrorBoundary>
                 </div>
             </div>
         </div>

@@ -53,4 +53,11 @@ export class DocumentService {
             }
         });
     }
+    async deleteDocument(id: string) {
+        return this.prisma.document.update({
+            where: { id },
+            data: { deletedAt: new Date() }
+        });
+    }
 }
+

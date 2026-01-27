@@ -4,6 +4,8 @@ import { GlobalContextService } from '../../common/context/global-context.servic
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 
+import { CreateAdmissionDto } from './dto/create-admission.dto';
+
 @Controller('admissions')
 @UseGuards(RolesGuard)
 export class AdmissionController {
@@ -14,10 +16,7 @@ export class AdmissionController {
 
     @Post()
     @Roles('GROUP_ADMIN', 'BRANCH_ADMIN')
-    async admitStudent(@Body() body: any) { // TODO: DTO
-        // branchId is injected via GlobalContext automatically in Service if we use it, 
-        // or we pass it explicitly.
-        // For now, let's assume we extract it from context or body for MVP if Context Middleware isn't active yet.
+    async admitStudent(@Body() body: CreateAdmissionDto) {
         return this.admissionService.admitStudent(body);
     }
     @Post('promote')

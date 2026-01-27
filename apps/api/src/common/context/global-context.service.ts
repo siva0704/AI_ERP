@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AsyncLocalStorage } from 'async_hooks';
 
 export interface IGlobalContext {
+  tenantId?: string;
   branchId: string;
   userId?: string;
   role?: string;
@@ -17,6 +18,10 @@ export class GlobalContextService {
 
   get branchId(): string | undefined {
     return this.als.getStore()?.branchId;
+  }
+
+  get tenantId(): string | undefined {
+    return this.als.getStore()?.tenantId;
   }
 
   get userId(): string | undefined {

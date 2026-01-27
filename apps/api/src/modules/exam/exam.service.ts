@@ -1,11 +1,30 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, HttpException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class ExamService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly configService: ConfigService
+    ) { }
 
     async getStudentMarksheet(studentId: string, branchId: string) {
+        if (this.configService.get('MOCK_MODE')) {
+            return [
+                {
+                    id: 'mock-result-1',
+                    marks: 85,
+                    exam: { name: 'Midterm Math', date: new Date() }
+                },
+                {
+                    id: 'mock-result-2',
+                    marks: 90,
+                    exam: { name: 'Midterm Physics', date: new Date() }
+                }
+            ];
+        }
+
         // 1. Fee Lock Logic
         const feesDue = await this.prisma.feeLedger.aggregate({
             where: {
@@ -19,8 +38,11 @@ export class ExamService {
 
         const pendingAmount = Number(feesDue._sum.amount || 0);
 
-        if (pendingAmount > 0) {
-            throw new ForbiddenException(`Marksheet blocked due to outstanding fees: $${pendingAmount}`);
+        // Grace Threshold: Don't block for minor amounts (e.g. < $50)
+        const THRESHOLD = Number(process.env.FEE_GATE_THRESHOLD) || 50;
+
+        if (pendingAmount > THRESHOLD) {
+            throw new HttpException(`Marksheet blocked due to outstanding fees: $${pendingAmount}`, 402);
         }
 
         // 2. Fetch Results
@@ -41,6 +63,13 @@ export class ExamService {
         marks: number;
         branchId: string;
     }) {
+        if (this.configService.get('MOCK_MODE')) {
+            return {
+                id: 'mock-result-new',
+                ...data
+            };
+        }
+
         // Upsert logic
         // Check if result exists
         const existing = await this.prisma.examResult.findFirst({

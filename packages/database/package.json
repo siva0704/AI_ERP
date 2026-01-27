@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "build": "echo 'DB Build Skipped'",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -17,5 +18,8 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

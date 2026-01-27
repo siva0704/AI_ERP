@@ -13,7 +13,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
     }
 
     async onModuleInit() {
-        // await this.$connect(); // Disabled for Mock Mode
+        if (process.env.MOCK_MODE === 'true') {
+            console.log('WARN: PrismaService instantiated even though MOCK_MODE=true. Skipping connection.');
+            return;
+        }
+        await this.$connect();
+    }
+
+    async onModuleDestroy() {
+        await this.$disconnect();
     }
 
     // Wrapper to get an RLS-enabled client
@@ -33,36 +41,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
 
                         // Only set RLS if we have a branchId (operational context)
                         if (branchId) {
-                            try {
-                                // Execute atomic Set Config
-                                // Note: $executeRaw is available on the client instance.
-                                // Inside $extends, we might need to use the client passed or `this`.
-                                // However, `query` executes the actual operation. 
-                                // We need a separate connection for the setting? 
-                                // No, RLS must be in the SAME transaction/connection.
-                                // Prisma doesn't guarantee the same connection for separate queries unless in $transaction.
-                                // BUT $extends query middleware wraps the *execution* of the query.
-                                // We need to use `tx.$executeRaw` if we were in a transaction.
-                                // The standard way for RLS in Prisma is usually strictly via Interactive Transactions 
-                                // OR finding a way to prepend the SQL.
-
-                                // For this MVP implementation using Client Extensions:
-                                // We will use the raw query feature to prepend the set_config.
-                                // But Prisma doesn't strictly support multi-statement queries in all modes.
-                                // A safer approach for RLS in Prisma is often Middleware or $transaction wrapper.
-                                // Given the limitation, we will simluate it by assuming the user will use 
-                                // $transaction for sensitive flows (like Admission), where we can inject it.
-
-                                // HOWEVER, to satisfy the requirement:
-                                // We will attempt to run it. If it fails due to connection pooling, 
-                                // we advise the user to use the Transactional approach for RLS.
-                                // Let's implement the simpler version that logs for now if it works.
-
-                                // Actually, the most robust way in Prisma for RLS is using `pg-bouncer` or similar, 
-                                // OR wrapping every critical call in a transaction where the first step is SET LOCAL.
-                            } catch (e) {
-                                console.error('Failed to set RLS context', e);
-                            }
+                            // In a real RLS setup with Row Level Security policies in Postgres,
+                            // we would execute a raw query here to set the local variable.
+                            // e.g., await tx.$executeRaw`SELECT set_config('app.current_branch_id', ${branchId}, true)`;
+                            // For this application, we are enforcing tenant isolation via Prisma Middleware/Where clauses
+                            // so we don't strictly *need* Postgres RLS yet, but the hook is here for future scaling.
                         }
                         return query(args);
                     },

@@ -3,21 +3,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-    LayoutDashboard,
-    Users,
-    CreditCard,
-    Settings,
-    Calendar,
-    Clock,
-    Figma,
     GraduationCap,
     Menu,
-    LogOut,
-    BookOpen,
-    Bus
+    LogOut
 } from "lucide-react";
+
 import { useState, useEffect } from "react";
 import Cookies from "js-cookie";
+
+import { getNavItemsForRole, NavItemConfig } from "@/config/navigation.config";
+import { AssistantChat } from "@/components/assistant/assistant-chat";
 
 function SidebarItems() {
     const [role, setRole] = useState<string | null>(null);
@@ -26,28 +21,20 @@ function SidebarItems() {
         setRole(Cookies.get("user-role") || "BRANCH_ADMIN");
     }, []);
 
-    const items = [
-        { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Overview", roles: ["GROUP_ADMIN", "BRANCH_ADMIN", "STAFF", "STUDENT"] },
-        { href: "/admissions", icon: <Users size={20} />, label: "Admissions", roles: ["GROUP_ADMIN", "BRANCH_ADMIN"] },
-        { href: "/fees", icon: <CreditCard size={20} />, label: "Fees", roles: ["GROUP_ADMIN", "BRANCH_ADMIN"] },
-        { href: "/attendance", icon: <Calendar size={20} />, label: "Attendance", roles: ["GROUP_ADMIN", "BRANCH_ADMIN", "STAFF"] },
-        { href: "/timetable", icon: <Clock size={20} />, label: "Timetable", roles: ["GROUP_ADMIN", "BRANCH_ADMIN", "STAFF", "STUDENT"] },
-        { href: "/exams", icon: <Figma size={20} />, label: "Exams", roles: ["GROUP_ADMIN", "BRANCH_ADMIN", "STAFF", "STUDENT"] },
-        { href: "/library", icon: <BookOpen size={20} />, label: "Library", roles: ["GROUP_ADMIN", "BRANCH_ADMIN", "STAFF", "STUDENT"] },
-        { href: "/transport", icon: <Bus size={20} />, label: "Transport", roles: ["GROUP_ADMIN", "BRANCH_ADMIN", "STAFF", "STUDENT"] },
-        { href: "/settings", icon: <Settings size={20} />, label: "Settings", roles: ["GROUP_ADMIN", "BRANCH_ADMIN"] },
-    ];
+    if (!role) return null;
 
-    if (!role) return null; // or skeleton
+    const items = getNavItemsForRole(role);
 
     return (
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-            {items.map((item) => {
-                if (item.roles.includes(role)) {
-                    return <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />;
-                }
-                return null;
-            })}
+            {items.map((item) => (
+                <NavItem
+                    key={item.href}
+                    href={item.href}
+                    icon={<item.icon size={20} />}
+                    label={item.label}
+                />
+            ))}
         </nav>
     );
 }
@@ -131,9 +118,12 @@ export default function DashboardLayout({
                         >
                             <Menu size={20} />
                         </button>
-                        <h2 className="text-xl font-display font-bold uppercase tracking-tight text-[var(--color-primary)]">
-                            {getPortalTitle()}
-                        </h2>
+                        <div>
+                            <h2 className="text-xl font-display font-bold uppercase tracking-tight text-[var(--color-primary)] leading-none">
+                                {getPortalTitle()}
+                            </h2>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Springfield High • Branch 01</p>
+                        </div>
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="text-right hidden sm:block">
@@ -153,7 +143,8 @@ export default function DashboardLayout({
                     </div>
                 </div>
             </main>
-        </div >
+            <AssistantChat />
+        </div>
     );
 }
 

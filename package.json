@@ -1,0 +1,24 @@
+{
+    "name": "ai-erp-root",
+    "version": "0.0.0",
+    "private": true,
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
+    "scripts": {
+        "build": "turbo run build",
+        "dev": "turbo run dev",
+        "lint": "turbo run lint",
+        "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+        "prod:check": "docker-compose down -v && docker-compose up --build -d && node verify-ecosystem.js"
+    },
+    "devDependencies": {
+        "turbo": "latest",
+        "prettier": "latest"
+    },
+    "engines": {
+        "node": ">=18"
+    },
+    "packageManager": "npm@10.0.0"
+}
